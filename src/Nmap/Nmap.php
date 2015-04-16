@@ -17,21 +17,21 @@ use Symfony\Component\Process\ProcessUtils;
  * @author William Durand <william.durand1@gmail.com>
  * @author Aitor García <aitor.falc@gmail.com>
  */
-class Nmap
-{
+class Nmap {
+
     private $executor;
 
     private $outputFile;
 
-    private $enableOsDetection = false;
+    private $enableOsDetection  = false;
 
-    private $enableServiceInfo = false;
+    private $enableServiceInfo  = false;
 
-    private $enableVerbose     = false;
+    private $enableVerbose      = false;
 
-    private $disablePortScan   = false;
+    private $disablePortScan    = false;
 
-    private $disableReverseDNS = false;
+    private $disableReverseDNS  = false;
 
     private $treatHostsAsOnline = false;
 
@@ -58,10 +58,7 @@ class Nmap
         $this->outputFile = $outputFile ?: sys_get_temp_dir() . '/output.xml';
         $this->executable = $executable;
 
-        // If executor returns anything else than 0 (success exit code), throw an exeption since $executable is not executable.
-        if ($executor->execute($this->executable) !== 0) {
-            throw new \InvalidArgumentException(sprintf('`%s` is not executable.', $this->executable));
-        }
+        $this->checkInstallation($executor);
     }
 
     /**
@@ -70,50 +67,60 @@ class Nmap
      *
      * @return Host[]
      */
-    public function scan(array $targets, array $ports = array())
+    public function scan(array $targets, array $ports = [ ])
     {
-        $targets = implode(' ', array_map(function ($target) {
+        $targets = implode(' ', array_map(function ($target)
+        {
             return ProcessUtils::escapeArgument($target);
         }, $targets));
 
-        $options = array();
-        if (true === $this->enableOsDetection) {
+        $options = [ ];
+        if ( true === $this->enableOsDetection )
+        {
             $options[] = '-O';
         }
 
-        if (true === $this->enableServiceInfo) {
+        if ( true === $this->enableServiceInfo )
+        {
             $options[] = '-sV';
         }
 
-        if (true === $this->enableVerbose) {
+        if ( true === $this->enableVerbose )
+        {
             $options[] = '-v';
         }
 
-        if (true === $this->disablePortScan) {
+        if ( true === $this->disablePortScan )
+        {
             $options[] = '-sn';
-        } elseif (!empty($ports)) {
-            $options[] = '-p '.implode(',', $ports);
+        }
+        elseif ( ! empty( $ports ) )
+        {
+            $options[] = '-p ' . implode(',', $ports);
         }
 
-        if (true === $this->disableReverseDNS) {
+        if ( true === $this->disableReverseDNS )
+        {
             $options[] = '-n';
         }
 
-        if (true == $this->treatHostsAsOnline) {
+        if ( true == $this->treatHostsAsOnline )
+        {
             $options[] = '-Pn';
         }
 
         $options[] = '-oX';
         $command   = sprintf('%s %s %s %s',
-            $this->executable,
-            implode(' ', $options),
-            ProcessUtils::escapeArgument($this->outputFile),
-            $targets
+                             $this->executable,
+                             implode(' ', $options),
+                             ProcessUtils::escapeArgument($this->outputFile),
+                             $targets
         );
 
         $this->executor->execute($command);
 
-        if (!file_exists($this->outputFile)) {
+        if ( ! file_exists($this->outputFile) )
+        {
             throw new \RuntimeException(sprintf('Output file not found ("%s")', $this->outputFile));
         }
 
@@ -196,13 +203,14 @@ class Nmap
     {
         $xml = simplexml_load_file($xmlFile);
 
-        $hosts = array();
-        foreach ($xml->host as $host) {
+        $hosts = [ ];
+        foreach ( $xml->host as $host )
+        {
             $hosts[] = new Host(
                 (string) $host->address->attributes()->addr,
                 (string) $host->status->attributes()->state,
-                isset($host->hostnames) ? $this->parseHostnames($host->hostnames->hostname) : array(),
-                isset($host->ports) ? $this->parsePorts($host->ports->port) : array()
+                isset( $host->hostnames ) ? $this->parseHostnames($host->hostnames->hostname) : [ ],
+                isset( $host->ports ) ? $this->parsePorts($host->ports->port) : [ ]
             );
         }
 
@@ -211,8 +219,9 @@ class Nmap
 
     private function parseHostnames(\SimpleXMLElement $xmlHostnames)
     {
-        $hostnames = array();
-        foreach ($xmlHostnames as $hostname) {
+        $hostnames = [ ];
+        foreach ( $xmlHostnames as $hostname )
+        {
             $hostnames[] = new Hostname(
                 (string) $hostname->attributes()->name,
                 (string) $hostname->attributes()->type
@@ -224,8 +233,9 @@ class Nmap
 
     private function parsePorts(\SimpleXMLElement $xmlPorts)
     {
-        $ports = array();
-        foreach ($xmlPorts as $port) {
+        $ports = [ ];
+        foreach ( $xmlPorts as $port )
+        {
             $ports[] = new Port(
                 (string) $port->attributes()->portid,
                 (string) $port->attributes()->protocol,
@@ -239,5 +249,17 @@ class Nmap
         }
 
         return $ports;
+    }
+
+    /**
+     * @param ProcessExecutor $executor
+     */
+    private function checkInstallation(ProcessExecutor $executor)
+    {
+        // If executor returns anything else than 0 (success exit code), throw an exeption since $executable is not executable.
+        if ( $executor->execute($this->executable . ' -v') !== 0 )
+        {
+            throw new \InvalidArgumentException(sprintf('`%s` is not executable.', $this->executable));
+        }
     }
 }
