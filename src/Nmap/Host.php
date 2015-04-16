@@ -13,11 +13,13 @@ namespace Nmap;
 /**
  * @author William Durand <william.durand1@gmail.com>
  */
-class Host
-{
+class Host {
+
     const STATE_UP   = 'up';
 
     const STATE_DOWN = 'down';
+
+    private $macAddress;
 
     private $address;
 
@@ -27,12 +29,13 @@ class Host
 
     private $ports;
 
-    public function __construct($address, $state, array $hostnames = array(), array $ports = array())
+    public function __construct($address, $state, array $hostnames = [ ], array $ports = [ ], $macAddress = null)
     {
-        $this->address   = $address;
-        $this->state     = $state;
-        $this->hostnames = $hostnames;
-        $this->ports     = $ports;
+        $this->address    = $address;
+        $this->state      = $state;
+        $this->hostnames  = $hostnames;
+        $this->ports      = $ports;
+        $this->macAddress = $macAddress;
     }
 
     /**
@@ -72,7 +75,8 @@ class Host
      */
     public function getOpenPorts()
     {
-        return array_filter($this->ports, function ($port) {
+        return array_filter($this->ports, function ($port)
+        {
             return $port->isOpen();
         });
     }
@@ -82,8 +86,17 @@ class Host
      */
     public function getClosedPorts()
     {
-        return array_filter($this->ports, function ($port) {
+        return array_filter($this->ports, function ($port)
+        {
             return $port->isClosed();
         });
+    }
+
+    /**
+     * @return mixed
+     */
+    public function getMacAddress()
+    {
+        return $this->macAddress;
     }
 }

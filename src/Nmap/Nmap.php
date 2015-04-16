@@ -23,6 +23,8 @@ class Nmap {
 
     private $outputFile;
 
+    private $executable;
+
     private $enableOsDetection  = false;
 
     private $enableServiceInfo  = false;
@@ -35,7 +37,30 @@ class Nmap {
 
     private $treatHostsAsOnline = false;
 
-    private $executable;
+    private $enableMacAddresses = false;
+
+    private $serverMacAddress;
+
+    private $serverIpAddress;
+
+    /**
+     * Regular expression for matching and validating a MAC address
+     *
+     * @var string
+     */
+    private static $valid_mac  = "([0-9A-F]{2}[:-]){5}([0-9A-F]{2})";
+
+    private static $valid_macs = "([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}";
+
+    /**
+     * An array of valid MAC address characters
+     *
+     * @var array
+     */
+    private static $mac_address_vals = [
+        "0", "1", "2", "3", "4", "5", "6", "7",
+        "8", "9", "A", "B", "C", "D", "E", "F"
+    ];
 
     /**
      * @return Nmap
@@ -58,7 +83,13 @@ class Nmap {
         $this->outputFile = $outputFile ?: sys_get_temp_dir() . '/output.xml';
         $this->executable = $executable;
 
-        $this->checkInstallation($executor);
+        $executor = $this->executor;
+
+        // If executor returns anything else than 0 (success exit code), throw an exeption since $executable is not executable.
+        if ( $executor->execute($this->executable . ' -v') !== 0 )
+        {
+            throw new \InvalidArgumentException(sprintf('`%s` is not executable.', $this->executable));
+        }
     }
 
     /**
@@ -109,12 +140,18 @@ class Nmap {
             $options[] = '-Pn';
         }
 
+        if ( true == $this->enableMacAddresses )
+        {
+            $options[] = '-sP -n';
+        }
+
         $options[] = '-oX';
-        $command   = sprintf('%s %s %s %s',
-                             $this->executable,
-                             implode(' ', $options),
-                             ProcessUtils::escapeArgument($this->outputFile),
-                             $targets
+
+        $command = sprintf('%s %s %s %s',
+                           $this->executable,
+                           implode(' ', $options),
+                           ProcessUtils::escapeArgument($this->outputFile),
+                           $targets
         );
 
         $this->executor->execute($command);
@@ -204,14 +241,24 @@ class Nmap {
         $xml = simplexml_load_file($xmlFile);
 
         $hosts = [ ];
-        foreach ( $xml->host as $host )
+
+        foreach ( $xml->host as $rawHost )
         {
-            $hosts[] = new Host(
-                (string) $host->address->attributes()->addr,
-                (string) $host->status->attributes()->state,
-                isset( $host->hostnames ) ? $this->parseHostnames($host->hostnames->hostname) : [ ],
-                isset( $host->ports ) ? $this->parsePorts($host->ports->port) : [ ]
+
+            list( $macAddress, $ipAddress ) = $this->parseAddress($rawHost);
+
+            $state = $this->parseState($rawHost);
+
+            /** @var Host $host */
+            $host = new Host(
+                (string) $ipAddress,
+                (string) $state,
+                isset( $rawHost->hostnames ) ? $this->parseHostnames($rawHost->hostnames->hostname) : [ ],
+                isset( $rawHost->ports ) ? $this->parsePorts($rawHost->ports->port) : [ ],
+                (string) $macAddress
             );
+
+            $hosts[] = $host;
         }
 
         return $hosts;
@@ -251,15 +298,104 @@ class Nmap {
         return $ports;
     }
 
-    /**
-     * @param ProcessExecutor $executor
-     */
-    private function checkInstallation(ProcessExecutor $executor)
+    public function enableMacAddresses($disable = false)
     {
-        // If executor returns anything else than 0 (success exit code), throw an exeption since $executable is not executable.
-        if ( $executor->execute($this->executable . ' -v') !== 0 )
+        $this->enableMacAddresses = ! $disable;
+
+        return $this;
+    }
+
+    /**
+     * @param $host
+     * @return array
+     */
+    private function parseAddress($host)
+    {
+        foreach ( $host->address as $address )
         {
-            throw new \InvalidArgumentException(sprintf('`%s` is not executable.', $this->executable));
+            $macAddress = null;
+
+            $addressEl = $address->attributes();
+
+            if ( $addressEl->addrtype == 'mac' )
+            {
+                $macAddress = (string) $addressEl->addr[0];
+            }
+            else
+            {
+                $ipAddress = (string) $addressEl->addr;
+            }
+
+            if (!$macAddress) $macAddress = $this->getServerMacAddress();
         }
+
+        return [ $macAddress, $ipAddress ];
+    }
+
+    /**
+     * @param $host
+     * @return mixed
+     */
+    private function parseState($host)
+    {
+        $state = $host->status->attributes()->state;
+
+        return $state;
+    }
+
+    /**
+     * @return string
+     */
+    private function getServerIpAddress()
+    {
+        if ($this->serverIpAddress) return $this->serverIpAddress;
+
+        $this->serverIpAddress = gethostbyname(gethostname());
+
+        return $this->serverIpAddress;
+    }
+
+    /**
+     * @param string $interface
+     * @return bool|string
+     */
+    private function getServerMacAddress($interface = null)
+    {
+        if ($this->serverMacAddress) return $this->serverMacAddress;
+
+        if ( ! $interface ) $interface = $this->getInterfaceForIpAddress($this->getServerIpAddress());
+
+        $ifconfig = shell_exec("ifconfig");
+        preg_match("/" . self::$valid_macs . "/i", $ifconfig, $macs);
+
+
+        if ( isset( $macs[0] ) )
+        {
+            $this->serverMacAddress = trim(strtoupper($macs[0]));
+
+            return $this->serverMacAddress;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param $ipAddress
+     * @return string
+     */
+    private static function getInterfaceForIpAddress($ipAddress)
+    {
+        $route = "netstat -i";
+
+        exec($route, $output);
+
+        foreach ( $output as $key => $line )
+        {
+                $hasIpAddressInLine = strpos($line,$ipAddress) !== false;
+
+                if ($hasIpAddressInLine) return substr($line,0,strpos($line, ' '));
+        }
+
+        return null;
     }
 }
