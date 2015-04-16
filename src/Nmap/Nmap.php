@@ -62,6 +62,8 @@ class Nmap {
         "8", "9", "A", "B", "C", "D", "E", "F"
     ];
 
+    private $timeout = 60;
+
     /**
      * @return Nmap
      */
@@ -154,7 +156,7 @@ class Nmap {
                            $targets
         );
 
-        $this->executor->execute($command);
+        $this->executor->execute($command, $this->timeout);
 
         if ( ! file_exists($this->outputFile) )
         {
@@ -397,5 +399,24 @@ class Nmap {
         }
 
         return null;
+    }
+
+    /**
+     * @return int
+     */
+    public function getTimeout()
+    {
+        return $this->timeout;
+    }
+
+    /**
+     * @param int $timeout seconds
+     * @return $this
+     */
+    public function setTimeout($timeout)
+    {
+        $this->timeout = $timeout;
+
+        return $this;
     }
 }

@@ -17,14 +17,19 @@ use Symfony\Component\Process\Process;
  */
 class ProcessExecutor
 {
+
     /**
      * @param string $command The command to execute.
      *
-     * @return integer
+     * @param int    $timeout seconds
+     * @return int
      */
-    public function execute($command)
+    public function execute($command, $timeout = 60)
     {
         $process = new Process($command);
+
+        $process->setTimeout($timeout);
+
         $process->run();
 
         if (!$process->isSuccessful()) {
