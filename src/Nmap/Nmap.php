@@ -328,7 +328,7 @@ class Nmap {
                 $ipAddress = (string) $addressEl->addr;
             }
 
-            if (!$macAddress && $this->serverIpAddress() == $ipAddress) $macAddress = $this->getServerMacAddress();
+            if (!$macAddress && $this->getServerIpAddress() == $ipAddress) $macAddress = $this->getServerMacAddress();
         }
 
         return [ $macAddress, $ipAddress ];
