@@ -19,23 +19,16 @@ class Host {
 
     const STATE_DOWN = 'down';
 
-    protected $macAddress;
+    private $macAddress;
 
-    private   $address;
+    private $address;
 
-    private   $state;
+    private $state;
 
-    private   $hostnames;
+    private $hostnames;
 
-    private   $ports;
+    private $ports;
 
-    /**
-     * @param       $address
-     * @param       $state
-     * @param array $hostnames
-     * @param array $ports
-     * @param null  $macAddress
-     */
     public function __construct($address, $state, array $hostnames = [ ], array $ports = [ ], $macAddress = null)
     {
         $this->address    = $address;
@@ -99,6 +92,9 @@ class Host {
         });
     }
 
+    /**
+     * @return mixed
+     */
     public function getMacAddress()
     {
         return $this->macAddress;
